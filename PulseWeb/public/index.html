@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+		<title>PulseLang</title>
+		<link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css?h=90b72b22e298dd0c08b53349d003915e">
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato:300,400,700">
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ionicons/2.0.1/css/ionicons.min.css">
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pikaday/1.6.1/css/pikaday.min.css">
+		<link rel="stylesheet" href="assets/css/styles.min.css?h=c8710844eef70815c2b24e59234e5361">
+		<style>
+			#code {
+			height: 100%;
+			}
+			#output {
+			background-color: black;
+			color: grey;
+			font-family: Consolas,Monaco,Lucida Console,Liberation Mono,DejaVu Sans Mono,Bitstream Vera Sans Mono,Courier New, monospace;
+			overflow: scroll;
+			padding-top:15px;
+			font-size: 12px;
+			height:100%;
+			}
+			.app, html, body {
+			height: 100%;
+			}
+			hr { display: block; height: 1px;
+			border: 0; border-top: 1px solid white;
+			margin: 1em 0; padding: 0; }
+		</style>
+	</head>
+	<body>
+		<nav class="navbar navbar-dark navbar-expand-lg bg-white portfolio-navbar gradient">
+			<div class="container-fluid">
+				<img class="logo" src="assets/img/pulse.svg?h=09d5ee1efcef312685eb1e8ea4c9e851"><a class="navbar-brand logo" href="#">PulseLang</a><button data-toggle="collapse" class="navbar-toggler" data-target="#navbarNav"><span class="sr-only">Toggle navigation</span><span class="navbar-toggler-icon"></span></button>
+				<div
+					class="collapse navbar-collapse" id="navbarNav">
+					<ul class="nav navbar-nav ml-auto">
+						<li class="nav-item" role="presentation">
+							<div class="btn-toolbar">
+								<div class="btn-group" role="group"><button class="btn btn-success" type="button" onclick="run()"><i class="fa fa-play"></i>&nbsp; Run</button><button class="btn btn-primary" type="button" onclick="save()"><i class="fa fa-save"></i>&nbsp; Save</button><button class="btn btn-secondary" type="button" onclick="load()"><i class="fa fa-file"></i>&nbsp; Load</button></div>
+							</div>
+						</li>
+					</ul>
+				</div>
+			</div>
+		</nav>
+		<div class="row app">
+			<div class="col-md-6" id="code"></div>
+			<div class="col-md-6" id="output"></div>
+		</div>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/js/bootstrap.bundle.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/pikaday/1.6.1/pikaday.min.js"></script>
+		<script src="assets/js/script.min.js?h=f82c1f62e9f66b57f268c9f78badf050"></script>
+		<script src="/socket.io/socket.io.js"></script>
+		<script src="./lib/codemirror.js"></script>
+		<link rel="stylesheet" href="./lib/codemirror.css">
+		<script src="./mode/javascript/javascript.js"></script>
+		<script src="./assets/js/sweetalert2.all.min.js"></script>
+		<script>
+			var code = `/* PulseLang Example Program */
+/* Mandelbrot Set Generator */
+
+const xmin <- -2.0;
+const xmax <- 1.0;
+const ymin <- -1.5;
+const ymax <- 1.5;
+const width <- 80.0;
+const height <- 40.0;
+const threshhold <- 1000;
+
+function in_mandelbrot(x0 float, y0 float, n int) bool {
+    var x float <- 0.0;
+    var y float <- 0.0;
+    var xtemp float;
+    while(n > 0) {
+        xtemp <- x*x - y*y + x0;
+        y <- 2.0*x*y + y0;
+        x <- xtemp;
+        n <- n - 1;
+        if(x*x + y*y > 4.0) {
+            return false;
+        }
+    }
+    return true;
+}
+			
+function mandel() int {
+    var dx float <- (xmax - xmin)/width;
+    var dy float <- (ymax - ymin)/height;
+
+    var y float <- ymax;
+    var x float;
+			
+    while(y >= ymin) {
+        x <- xmin;
+        while(x < xmax) {
+            if(in_mandelbrot(x,y,threshhold)) {
+                print('*');
+            } else {
+                print('.');
+            }
+            x <- x + dx;
+        }
+        print('\\n');
+        y <- y - dy;
+    }
+    return 0;
+}
+			
+function main() int {
+    return mandel();
+}`;
+			var socket = io('https://pulse.brycec.me/');
+			var cm = CodeMirror(document.getElementById("code"), {
+			  value: code,
+			  mode:  "javascript",
+			  lineNumbers: true,
+			});
+			cm.setSize("100%", "100%");
+			
+			function format(color, text) {
+			    return `<span style="color:${color}">${$('<div>').text(text).html().replace(/(?:\r\n|\r|\n)/g, '<br>')}</span>`;
+			}
+			
+			socket.on('out', data => {
+			  if(data) {
+			      console.log("[OUT]", data);
+			      document.getElementById("output").innerHTML += format('white', data);
+			  }
+			});
+			
+			socket.on('err', data => {
+			  if(data) {
+			      console.log("[ERR]", data);
+			      document.getElementById("output").innerHTML += format('red', data);
+			  }
+			});
+			
+			socket.on('html', data => {
+			    console.log("[HTML]", data);
+			    document.getElementById("output").innerHTML += data;
+			});
+			
+			function run() {
+			    document.getElementById("output").innerHTML = '';
+			    socket.emit('run', cm.getValue());
+			}
+			function save() {
+			    swal({
+        			title: "Save File",
+        			html: "Please enter the name of the code to be saved:",
+        			type: "info",
+        			showCancelButton: !0,
+        			input: 'text'
+        		}).then(val => {
+            		var name = "pulse_" + val.value; 
+            		localStorage[name] = cm.getValue();
+        		});
+			}
+			function load() {
+			    if(localStorage.length == 0)
+			        return;
+			    
+			    var keys = {};
+			    for(var i = 0; i < localStorage.length; i++) {
+			        var key = localStorage.key(i);
+			        if(key.startsWith("pulse_")) {
+			            var fix = key.substring("pulse_".length);
+			            keys[key] = fix;
+			        }
+			    }
+			    swal({
+        			title: "Load File",
+        			html: "Please select the saved file to be loaded:",
+        			type: "info",
+        			showCancelButton: !0,
+        			input: 'select',
+        			inputOptions: keys
+    			}).then(val => {
+    			    cm.setValue(localStorage[val.value]);
+    			});
+			}
+		</script>
+	</body>
+</html>
